@@ -1,39 +1,22 @@
 /**
- * Central merge service for the config cascade.
+ * Interface for the ConfigMerger service.
  *
  * @remarks
- * Encapsulates the `deepmerge` library with local-precedence semantics.
+ * Provides generic deep-merge with local-precedence semantics.
  * Used by ConfigLoader for the local cascade (Global+Project) and
  * by the entry point for the final merge (Remote+Local).
  *
- * Array merge strategy: override array replaces base array completely
- * (no concatenation, no deduplication).
- *
- * @see ConfigMergerInterface - Interface definition
- * @see {@link https://github.com/TehShrike/deepmerge | deepmerge} - Underlying library
+ * @see ConfigMerger - Implementation
+ * @see {@link https://github.com/TehShrike/deepmerge | deepmerge} - Underlying merge library
  */
-import deepmerge from 'deepmerge'
-import type { ConfigMergerInterface } from '../interfaces/ConfigMergerInterface.js'
-
-/**
- * Custom array merge strategy: override array replaces base array completely.
- *
- * @param _target - The base array (ignored)
- * @param source - The override array (returned as-is)
- * @returns The source array unchanged
- */
-function overwriteArrays(_target: unknown[], source: unknown[]): unknown[] {
-  return source
-}
-
-export class ConfigMerger implements ConfigMergerInterface {
+export interface ConfigMergerInterface {
   /**
    * Deep-merge base and override configs.
    *
    * @param base - The base config (lower precedence)
    * @param override - The override config (higher precedence, wins on conflict)
    * @returns The merged config with override values taking precedence at all nesting levels.
-   *          Arrays in override replace arrays in base completely.
+   *          Arrays in override replace arrays in base completely (no concatenation).
    *
    * @example
    * ```typescript
@@ -45,20 +28,15 @@ export class ConfigMerger implements ConfigMergerInterface {
    * // result: { a: 1, b: { x: 10, y: 20 }, c: 3 }
    * ```
    */
-  public merge(
-    base: Record<string, unknown>,
-    override: Record<string, unknown>
-  ): Record<string, unknown> {
-    return deepmerge(base, override, { arrayMerge: overwriteArrays })
-  }
+  merge(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown>
 
   /**
    * Deep-merge with protected field handling.
    *
    * @remarks
    * Removes protected fields from base before merging, so override's
-   * protected fields are preserved unchanged. Typically used with
-   * `PROTECTED_FIELDS` (`$schema`, `version`) from PluginConfig.
+   * protected fields are preserved unchanged. Used for the final merge
+   * where `$schema` and `version` from local config must not be overwritten.
    *
    * @param base - The base config (protected fields will be removed before merge)
    * @param override - The override config (protected fields are preserved)
@@ -70,20 +48,14 @@ export class ConfigMerger implements ConfigMergerInterface {
    * const result = merger.mergeWithProtectedFields(
    *   { $schema: "remote.json", version: "2.0", data: "remote" },
    *   { $schema: "local.json", version: "1.0", data: "local" },
-   *   PROTECTED_FIELDS
+   *   ['$schema', 'version']
    * )
    * // result: { $schema: "local.json", version: "1.0", data: "local" }
    * ```
    */
-  public mergeWithProtectedFields(
+  mergeWithProtectedFields(
     base: Record<string, unknown>,
     override: Record<string, unknown>,
     protectedFields: readonly string[]
-  ): Record<string, unknown> {
-    const sanitizedBase = { ...base }
-    for (const field of protectedFields) {
-      delete sanitizedBase[field]
-    }
-    return this.merge(sanitizedBase, override)
-  }
+  ): Record<string, unknown>
 }

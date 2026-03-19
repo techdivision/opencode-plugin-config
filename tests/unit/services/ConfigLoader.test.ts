@@ -9,13 +9,13 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ConfigLoader } from '../../../src/services/ConfigLoader.js'
-import type { IConfigMerger } from '../../../src/services/interfaces/IConfigMerger.js'
+import type { ConfigMergerInterface } from '../../../src/interfaces/ConfigMergerInterface.js'
 import type { PluginLogger } from '../../../src/utils/logger.js'
 
 // Mock fs module
 vi.mock('node:fs')
 
-function createMockMerger(): IConfigMerger {
+function createMockMerger(): ConfigMergerInterface {
   return {
     merge: vi.fn((base, override) => ({ ...base, ...override })),
     mergeWithProtectedFields: vi.fn((base, override) => ({ ...base, ...override }))
@@ -34,7 +34,7 @@ function createMockLogger(): PluginLogger {
 }
 
 describe('ConfigLoader', () => {
-  let mockMerger: IConfigMerger
+  let mockMerger: ConfigMergerInterface
   let mockLogger: PluginLogger
   let loader: ConfigLoader
 

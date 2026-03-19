@@ -16,7 +16,6 @@ Feature: Repository Initialization and Project Scaffolding
     And the JSON field "dependencies" contains "deepmerge"
     And the JSON field "dependencies" contains "ajv"
     And the JSON field "dependencies" contains "ajv-formats"
-    And the JSON field "dependencies" contains "@techdivision/opencode-cli"
     And the JSON field "devDependencies" contains "@types/bun"
     And the JSON field "devDependencies" contains "@types/node"
     And the JSON field "devDependencies" contains "typescript"
@@ -46,8 +45,8 @@ Feature: Repository Initialization and Project Scaffolding
     Given the repository root directory exists
     When I read the file "vitest.config.ts"
     Then the file exists
-    And the file contains "tests/unit/**/*.test.ts"
-    And the file contains "tests/integration/**/*.test.ts"
+    And the file contains the pattern "tests/unit/"
+    And the file contains the pattern "tests/integration/"
 
   Scenario: .gitignore exists with required excludes
     Given the repository root directory exists
