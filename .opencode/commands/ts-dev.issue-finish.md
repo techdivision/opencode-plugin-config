@@ -1,0 +1,1 @@
+/Users/wagnert/.config/opencode/node_modules/@techdivision/opencode-plugins/ts-dev/.opencode/commands/issue-finish.md

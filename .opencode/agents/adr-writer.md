@@ -1,0 +1,1 @@
+/Users/wagnert/.config/opencode/node_modules/@techdivision/opencode-plugins/pm/.opencode/agents/adr-writer.md

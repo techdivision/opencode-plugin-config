@@ -1,0 +1,188 @@
+{
+  "$schema": "../schemas/opencode-project.json",
+  "version": "2.4.0",
+  "jira": {
+    "project": "COPSPA",
+    "base_url": "https://techdivision.atlassian.net",
+    "workflow": {
+      "status": {
+        "open": {
+          "name": "Offen",
+          "id": "1"
+        },
+        "refinement": {
+          "name": "Refinement",
+          "id": "10032"
+        },
+        "estimation_needed": {
+          "name": "Estimation needed",
+          "id": "10033"
+        },
+        "selected": {
+          "name": "Selected",
+          "id": "10040"
+        },
+        "in_progress": {
+          "name": "In Arbeit",
+          "id": "3"
+        },
+        "test": {
+          "name": "Test",
+          "id": "10029"
+        },
+        "testing_done": {
+          "name": "Testing done",
+          "id": "10089"
+        },
+        "on_hold": {
+          "name": "On hold",
+          "id": "10018"
+        },
+        "rejected": {
+          "name": "Zurückgewiesen",
+          "id": "10019"
+        },
+        "closed": {
+          "name": "Geschlossen",
+          "id": "6"
+        }
+      },
+      "defaults": {
+        "transitions": {
+          "start_epic": {
+            "from": "open",
+            "to": "refinement"
+          },
+          "start_work": {
+            "from": "selected",
+            "to": "in_progress"
+          },
+          "complete_work": {
+            "from": "in_progress",
+            "to": "test"
+          },
+          "close_ticket": {
+            "from": "testing_done",
+            "to": "closed"
+          }
+        },
+        "wip_limits": {
+          "in_progress": 3,
+          "in_review": 5,
+          "testing": 2
+        }
+      }
+    },
+    "tempo": {
+      "account_field_id": "customfield_10039",
+      "team_field_id": "customfield_10038",
+      "default_account_key": "TD_KS_1100_KI_Arbeitsweise",
+      "accounts": {
+        "TD_KS_1165_CoP_SPA": {
+          "id": 2847,
+          "value": "1165 | CoP Smart Process Automation SPA"
+        },
+        "TD_KS_1100_KI_Arbeitsweise": {
+          "id": 2936,
+          "value": "1100 | KI Arbeitsweise"
+        }
+      }
+    }
+  },
+  "time_tracking": {
+    "csv_file": ".opencode/time_tracking/time-tracking.csv",
+    "charts_dir": ".opencode/time_tracking/charts/",
+    "reports_dir": ".opencode/time_tracking/reports/",
+    "valid_projects": ["COPSPA"],
+    "agent_defaults": {
+      "@implementation": {
+        "issue_key": "COPSPA-5",
+        "account_key": "TD_KS_1100_KI_Arbeitsweise",
+        "subagents": ["@reviewer", "@tester", "@developer", "@build", "@plan", "@git-flow"]
+      }
+    },
+    "global_default": {
+      "issue_key": "COPSPA-5",
+      "account_key": "TD_KS_1100_KI_Arbeitsweise"
+    },
+    "ignored_agents": [
+      "@time-tracking"
+    ],
+    "sync": {
+      "calendar": {
+        "source_calendar_id": "{env.TT_SOURCE_CALENDAR_ID}",
+        "booking_calendar_id": "{env.TT_BOOKING_CALENDAR_ID}",
+        "ticket_pattern": "([A-Z]+-\\d+)",
+        "account_pattern": "(TD_[A-Z0-9_]+)",
+        "filter": {
+          "exclude_title_patterns": [
+            "^\\[PRIVAT\\]"
+          ],
+          "require_attendees": false,
+          "require_accepted": true,
+          "exclude_all_day": true
+        }
+      },
+      "tempo": {
+        "api_token": "{env.TT_TEMPO_API_TOKEN}",
+        "base_url": "https://api.tempo.io",
+        "atlassian_account_id": "{env.TT_ATLASSIAN_ACCOUNT_ID}"
+      }
+    },
+    "title_generation": {
+      "enabled": true,
+      "model": "ollama/mistral:latest",
+      "api_url": "http://ai.tdservice.net:11434/v1",
+      "prompt": "time_tracking/prompts/title.txt",
+      "timeout_ms": 5000,
+      "max_chars": 240,
+      "locale": "de-DE"
+    },
+    "pricing": {
+      "ratio": {
+        "input": 0.8,
+        "output": 0.2
+      },
+      "default": {
+        "input": 3,
+        "output": 15
+      },
+      "periods": [
+        {
+          "from": "2025-11-01",
+          "models": {
+            "anthropic/claude-opus-4": {
+              "input": 15,
+              "output": 75
+            },
+            "anthropic/claude-sonnet-4": {
+              "input": 3,
+              "output": 15
+            }
+          }
+        },
+        {
+          "from": "2025-12-20",
+          "models": {
+            "anthropic/claude-opus-4": {
+              "input": 15,
+              "output": 75
+            },
+            "anthropic/claude-opus-4-5": {
+              "input": 5,
+              "output": 25
+            },
+            "anthropic/claude-sonnet-4": {
+              "input": 3,
+              "output": 15
+            },
+            "anthropic/claude-sonnet-4-5": {
+              "input": 3,
+              "output": 15
+            }
+          }
+        }
+      ]
+    }
+  }
+}

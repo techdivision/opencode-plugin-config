@@ -1,0 +1,48 @@
+{
+  "name": "@techdivision/opencode-plugin-config",
+  "version": "0.1.0",
+  "description": "OpenCode Plugin - Configuration cascade with deep-merge, env-var resolution and schema validation",
+  "type": "module",
+  "main": "src/config.ts",
+  "types": "src/config.ts",
+  "files": [
+    "src/",
+    "skills/",
+    "schemas/",
+    "plugin.json"
+  ],
+  "keywords": [
+    "opencode",
+    "plugin",
+    "config"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "1.2.5",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "deepmerge": "^4.3.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1",
+    "@amiceli/vitest-cucumber": "^6.0.0"
+  },
+  "peerDependencies": {
+    "bun": ">=1.0.0"
+  },
+  "opencode": {
+    "plugin": true,
+    "category": "optional"
+  },
+  "author": "TechDivision GmbH",
+  "license": "MIT"
+}

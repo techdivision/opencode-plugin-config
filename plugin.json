@@ -1,0 +1,7 @@
+{
+  "name": "config",
+  "description": "Configuration cascade with deep-merge, env-var resolution and schema validation",
+  "category": "optional",
+  "version": "0.1.0",
+  "configSchema": "schemas/config.schema.json"
+}

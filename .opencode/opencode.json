@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json", 
+  "instructions": [
+    "guideline/*.md"
+  ],
+  "permission": {
+    "external_directory": {
+      "~/time_tracking/**": "allow"
+    }
+  },
+  "agent": {
+    "time-tracking": {
+      "model": "anthropic/claude-sonnet-4-0"
+    },
+    "plugin-linter": {
+      "model": "anthropic/claude-sonnet-4-0"
+    }
+  }
+}

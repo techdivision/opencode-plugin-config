@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "Configuration schema for the opencode-plugin-config plugin",
+  "properties": {
+    "sync_url": {
+      "type": "string",
+      "description": "Webhook URL for config synchronization"
+    },
+    "sync_token": {
+      "type": "string",
+      "description": "Authentication token for the config sync webhook"
+    },
+    "sync_enabled": {
+      "type": "boolean",
+      "description": "Whether config sync is enabled",
+      "default": true
+    }
+  },
+  "additionalProperties": true
+}

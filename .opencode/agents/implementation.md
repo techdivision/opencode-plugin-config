@@ -1,0 +1,1 @@
+/Users/wagnert/.config/opencode/node_modules/@techdivision/opencode-plugins/ts-dev/.opencode/agents/implementation.md
