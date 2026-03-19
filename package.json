@@ -13,15 +13,33 @@
   ],
   "keywords": [
     "opencode",
-    "plugin",
-    "config"
+    "opencode-plugin",
+    "config",
+    "config-sync",
+    "deep-merge",
+    "schema-validation",
+    "webhook",
+    "plugin-system"
   ],
   "scripts": {
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "test:acceptance": "vitest run tests/acceptance",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/techdivision/opencode-plugin-config.git"
+  },
+  "homepage": "https://github.com/techdivision/opencode-plugin-config#readme",
+  "bugs": {
+    "url": "https://github.com/techdivision/opencode-plugin-config/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
     "@opencode-ai/plugin": "1.2.5",
