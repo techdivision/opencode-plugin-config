@@ -16,7 +16,7 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber'
 import { vi, expect, beforeEach, afterEach } from 'vitest'
 import { ConfigSyncer } from '../../../../src/services/ConfigSyncer.js'
-import type { PluginLogger } from '../../../../src/utils/PluginLogger.js'
+import type { PluginLoggerInterface } from '../../../../src/interfaces/PluginLoggerInterface.js'
 import type { SyncPayload } from '../../../../src/types/SyncPayload.js'
 import type { SyncResponse } from '../../../../src/types/SyncResponse.js'
 
@@ -37,7 +37,7 @@ const feature = await loadFeature(
 
 describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) => {
   let syncer: ConfigSyncerTestAccess
-  let mockLogger: PluginLogger
+  let mockLogger: PluginLoggerInterface
   let fetchMock: ReturnType<typeof vi.fn>
   let syncUrl: string
   let syncToken: string | null
@@ -52,7 +52,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) =
       error: vi.fn(),
       withLogging: vi.fn(),
       withErrorHandling: vi.fn(),
-    } as unknown as PluginLogger
+    } as unknown as PluginLoggerInterface
 
     syncer = new ConfigSyncer(mockLogger) as unknown as ConfigSyncerTestAccess
     fetchMock = vi.fn()

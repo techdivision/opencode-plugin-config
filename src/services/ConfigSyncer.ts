@@ -32,7 +32,7 @@ import { gt } from 'semver'
 import type { ConfigSyncerInterface } from '../interfaces/ConfigSyncerInterface.js'
 import type { SyncPayload } from '../types/SyncPayload.js'
 import type { SyncResponse } from '../types/SyncResponse.js'
-import type { PluginLogger } from '../utils/PluginLogger.js'
+import type { PluginLoggerInterface } from '../interfaces/PluginLoggerInterface.js'
 
 /**
  * Regex pattern to detect unresolved `{env:VAR}` placeholders.
@@ -48,7 +48,7 @@ export class ConfigSyncer implements ConfigSyncerInterface {
   /**
    * @param logger - Optional SDK logger for debug/warning messages (Explicit Constructor Injection)
    */
-  constructor(private readonly logger?: PluginLogger) {}
+  constructor(private readonly logger?: PluginLoggerInterface) {}
 
   /**
    * Resolve the sync webhook URL from the local config or process.env.

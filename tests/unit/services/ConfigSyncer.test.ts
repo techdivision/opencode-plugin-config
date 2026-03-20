@@ -26,7 +26,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ConfigSyncer } from '../../../src/services/ConfigSyncer.js'
-import type { PluginLogger } from '../../../src/utils/PluginLogger.js'
+import type { PluginLoggerInterface } from '../../../src/interfaces/PluginLoggerInterface.js'
 import type { SyncPayload } from '../../../src/types/SyncPayload.js'
 import type { SyncResponse } from '../../../src/types/SyncResponse.js'
 
@@ -60,7 +60,7 @@ type ConfigSyncerTestAccess = {
 
 describe('ConfigSyncer', () => {
   let syncer: ConfigSyncerTestAccess
-  let mockLogger: PluginLogger
+  let mockLogger: PluginLoggerInterface
 
   beforeEach(() => {
     mockLogger = {
@@ -70,7 +70,7 @@ describe('ConfigSyncer', () => {
       error: vi.fn(),
       withLogging: vi.fn(),
       withErrorHandling: vi.fn(),
-    } as unknown as PluginLogger
+    } as unknown as PluginLoggerInterface
 
     syncer = new ConfigSyncer(mockLogger) as unknown as ConfigSyncerTestAccess
   })
