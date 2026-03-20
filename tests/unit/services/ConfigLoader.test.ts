@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { ConfigLoader } from '../../../src/services/ConfigLoader.js'
 import type { ConfigMergerInterface } from '../../../src/interfaces/ConfigMergerInterface.js'
-import type { PluginLogger } from '../../../src/utils/logger.js'
+import type { PluginLoggerInterface } from '../../../src/interfaces/PluginLoggerInterface.js'
 
 // Mock fs module
 vi.mock('node:fs')
@@ -22,7 +22,7 @@ function createMockMerger(): ConfigMergerInterface {
   }
 }
 
-function createMockLogger(): PluginLogger {
+function createMockLogger(): PluginLoggerInterface {
   return {
     debug: vi.fn(),
     info: vi.fn(),
@@ -35,7 +35,7 @@ function createMockLogger(): PluginLogger {
 
 describe('ConfigLoader', () => {
   let mockMerger: ConfigMergerInterface
-  let mockLogger: PluginLogger
+  let mockLogger: PluginLoggerInterface
   let loader: ConfigLoader
 
   beforeEach(() => {

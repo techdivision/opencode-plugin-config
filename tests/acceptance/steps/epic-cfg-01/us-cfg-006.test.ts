@@ -9,9 +9,9 @@ import { expect, vi } from 'vitest'
 import fs from 'node:fs'
 import { ConfigLoader } from '../../../../src/services/ConfigLoader.js'
 import { ConfigMerger } from '../../../../src/services/ConfigMerger.js'
-import type { PluginLogger } from '../../../../src/utils/logger.js'
+import type { PluginLoggerInterface } from '../../../../src/interfaces/PluginLoggerInterface.js'
 
-function createMockLogger(): PluginLogger {
+function createMockLogger(): PluginLoggerInterface {
   return {
     debug: vi.fn(),
     info: vi.fn(),
@@ -38,7 +38,7 @@ const feature = await loadFeature(
 
 describeFeature(feature, ({ Scenario, BeforeEachScenario, AfterEachScenario }) => {
   let loader: ConfigLoader
-  let mockLogger: PluginLogger
+  let mockLogger: PluginLoggerInterface
   let result: Record<string, unknown>
   let readFileSyncSpy: ReturnType<typeof vi.spyOn>
 
