@@ -28,6 +28,7 @@
  * @see SyncResponse - The webhook response (US-CFG-011)
  */
 import type { ConfigSyncerInterface } from '../interfaces/ConfigSyncerInterface.js'
+import type { SyncPayload } from '../types/SyncPayload.js'
 import type { SyncResponse } from '../types/SyncResponse.js'
 import type { PluginLogger } from '../utils/logger.js'
 
@@ -96,6 +97,39 @@ export class ConfigSyncer implements ConfigSyncerInterface {
     }
 
     return process.env.OC_CONFIG_SYNC_TOKEN ?? null
+  }
+
+  /**
+   * Assemble the webhook payload from the provided parameters.
+   *
+   * @remarks
+   * Maps the caller-provided parameters into the SyncPayload structure
+   * expected by the n8n webhook endpoint. All values are passed through
+   * as-is — no transformation or validation is performed here.
+   *
+   * The email parameter is expected to come from `process.env.OPENCODE_USER_EMAIL`,
+   * resolved by the entry point before calling this method.
+   *
+   * @param localConfig - The fully resolved local config (Global + Project merged, env-resolved)
+   * @param pluginNames - Names of all installed plugins from `discoverPlugins()`
+   * @param pluginVersion - Semantic version of this plugin from PluginDescriptor
+   * @param email - User email from `process.env.OPENCODE_USER_EMAIL`
+   * @returns The assembled SyncPayload ready for JSON serialization
+   *
+   * @see SyncPayload - The payload type definition
+   */
+  private buildPayload(
+    localConfig: Record<string, unknown>,
+    pluginNames: string[],
+    pluginVersion: string,
+    email: string,
+  ): SyncPayload {
+    return {
+      plugin_version: pluginVersion,
+      email,
+      plugins: pluginNames,
+      config: localConfig,
+    }
   }
 
   /**

@@ -1,5 +1,5 @@
 /**
- * Unit tests for ConfigSyncer — sync_url and sync_token resolution.
+ * Unit tests for ConfigSyncer — sync_url/sync_token resolution and payload assembly.
  *
  * @remarks
  * Tests the resolution cascade:
@@ -7,20 +7,26 @@
  * 2. Fallback to process.env.OC_CONFIG_SYNC_URL / OC_CONFIG_SYNC_TOKEN
  * 3. null when neither source provides a value
  *
- * Note: resolveSyncUrl() and resolveSyncToken() are private methods (internal
- * to syncConfig). Since syncConfig() is still a stub (US-CFG-014), we test
- * the private methods via type-casting as a temporary measure. Once syncConfig()
- * is implemented, these tests should be refactored to test through the public API.
+ * Also tests buildPayload() (US-CFG-011) which assembles the SyncPayload
+ * from the provided parameters.
+ *
+ * Note: resolveSyncUrl(), resolveSyncToken() and buildPayload() are private
+ * methods (internal to syncConfig). Since syncConfig() is still a stub
+ * (US-CFG-014), we test the private methods via type-casting as a temporary
+ * measure. Once syncConfig() is implemented, these tests should be refactored
+ * to test through the public API.
  *
  * @see ConfigSyncer
  * @see us-cfg-016-sync-url-resolution.feature
+ * @see us-cfg-011-payload-assembly.feature
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ConfigSyncer } from '../../../src/services/ConfigSyncer.js'
 import type { PluginLogger } from '../../../src/utils/logger.js'
+import type { SyncPayload } from '../../../src/types/SyncPayload.js'
 
 /**
- * Type alias for accessing private resolution methods during testing.
+ * Type alias for accessing private methods during testing.
  *
  * @remarks
  * Temporary workaround until syncConfig() is fully implemented (US-CFG-014).
@@ -30,6 +36,12 @@ import type { PluginLogger } from '../../../src/utils/logger.js'
 type ConfigSyncerTestAccess = {
   resolveSyncUrl(localConfig: Record<string, unknown>): string | null
   resolveSyncToken(localConfig: Record<string, unknown>): string | null
+  buildPayload(
+    localConfig: Record<string, unknown>,
+    pluginNames: string[],
+    pluginVersion: string,
+    email: string,
+  ): SyncPayload
 }
 
 describe('ConfigSyncer', () => {
@@ -186,6 +198,94 @@ describe('ConfigSyncer', () => {
       const result = syncer.resolveSyncToken(localConfig)
 
       expect(result).toBeNull()
+    })
+  })
+
+  describe('buildPayload [US-CFG-011]', () => {
+    it('should set plugin_version from the pluginVersion parameter', () => {
+      const payload = syncer.buildPayload({}, [], '0.2.0', 'user@example.com')
+
+      expect(payload.plugin_version).toBe('0.2.0')
+    })
+
+    it('should set email from the email parameter', () => {
+      const payload = syncer.buildPayload({}, [], '0.1.0', 't.wagner@techdivision.com')
+
+      expect(payload.email).toBe('t.wagner@techdivision.com')
+    })
+
+    it('should set plugins from the pluginNames parameter', () => {
+      const pluginNames = ['config', 'time-tracking', 'jira']
+
+      const payload = syncer.buildPayload({}, pluginNames, '0.1.0', 'user@example.com')
+
+      expect(payload.plugins).toEqual(['config', 'time-tracking', 'jira'])
+    })
+
+    it('should set config from the localConfig parameter', () => {
+      const localConfig = {
+        jira: { project: 'COPSPA' },
+        time_tracking: { csv_file: 'tracking.csv' },
+      }
+
+      const payload = syncer.buildPayload(localConfig, [], '0.1.0', 'user@example.com')
+
+      expect(payload.config).toEqual({
+        jira: { project: 'COPSPA' },
+        time_tracking: { csv_file: 'tracking.csv' },
+      })
+    })
+
+    it('should return a valid SyncPayload with all four fields', () => {
+      const localConfig = { jira: { project: 'COPSPA' } }
+      const pluginNames = ['config', 'time-tracking']
+      const pluginVersion = '0.2.0'
+      const email = 't.wagner@techdivision.com'
+
+      const payload = syncer.buildPayload(localConfig, pluginNames, pluginVersion, email)
+
+      expect(payload).toEqual({
+        plugin_version: '0.2.0',
+        email: 't.wagner@techdivision.com',
+        plugins: ['config', 'time-tracking'],
+        config: { jira: { project: 'COPSPA' } },
+      })
+    })
+
+    it('should handle empty plugins array', () => {
+      const payload = syncer.buildPayload({}, [], '0.1.0', 'user@example.com')
+
+      expect(payload.plugins).toEqual([])
+    })
+
+    it('should handle empty config object', () => {
+      const payload = syncer.buildPayload({}, [], '0.1.0', 'user@example.com')
+
+      expect(payload.config).toEqual({})
+    })
+
+    it('should produce a JSON-serializable payload', () => {
+      const localConfig = {
+        jira: { project: 'COPSPA' },
+        nested: { deep: { value: true } },
+      }
+
+      const payload = syncer.buildPayload(localConfig, ['config'], '0.1.0', 'user@example.com')
+      const serialized = JSON.stringify(payload)
+      const deserialized = JSON.parse(serialized)
+
+      expect(deserialized).toEqual(payload)
+    })
+
+    it('should preserve nested config structure', () => {
+      const localConfig = {
+        jira: { project: 'COPSPA', board: { id: 42 } },
+        time_tracking: { csv_file: 'tracking.csv' },
+      }
+
+      const payload = syncer.buildPayload(localConfig, [], '0.1.0', 'user@example.com')
+
+      expect(payload.config.jira).toEqual({ project: 'COPSPA', board: { id: 42 } })
     })
   })
 
