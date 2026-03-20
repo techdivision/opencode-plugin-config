@@ -22,7 +22,7 @@ import path from 'node:path'
 import os from 'node:os'
 import type { ConfigLoaderInterface } from '../interfaces/ConfigLoaderInterface.js'
 import type { ConfigMergerInterface } from '../interfaces/ConfigMergerInterface.js'
-import type { PluginLogger } from '../utils/logger.js'
+import type { PluginLogger } from '../utils/PluginLogger.js'
 import { GLOBAL_CONFIG_PATH, PROJECT_CONFIG_PATH, ENV_VAR_PATTERN } from '../types/PluginConfig.js'
 
 export class ConfigLoader implements ConfigLoaderInterface {

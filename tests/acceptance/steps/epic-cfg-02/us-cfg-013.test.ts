@@ -16,7 +16,7 @@
 import { loadFeature, describeFeature } from '@amiceli/vitest-cucumber'
 import { vi, expect } from 'vitest'
 import { ConfigSyncer } from '../../../../src/services/ConfigSyncer.js'
-import type { PluginLogger } from '../../../../src/utils/logger.js'
+import type { PluginLogger } from '../../../../src/utils/PluginLogger.js'
 import type { SyncResponse } from '../../../../src/types/SyncResponse.js'
 
 /**

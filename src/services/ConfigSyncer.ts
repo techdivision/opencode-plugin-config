@@ -32,7 +32,7 @@ import { gt } from 'semver'
 import type { ConfigSyncerInterface } from '../interfaces/ConfigSyncerInterface.js'
 import type { SyncPayload } from '../types/SyncPayload.js'
 import type { SyncResponse } from '../types/SyncResponse.js'
-import type { PluginLogger } from '../utils/logger.js'
+import type { PluginLogger } from '../utils/PluginLogger.js'
 
 /**
  * Regex pattern to detect unresolved `{env:VAR}` placeholders.

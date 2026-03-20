@@ -9,7 +9,7 @@ import { expect, vi } from 'vitest'
 import fs from 'node:fs'
 import { ConfigLoader } from '../../../../src/services/ConfigLoader.js'
 import { ConfigMerger } from '../../../../src/services/ConfigMerger.js'
-import type { PluginLogger } from '../../../../src/utils/logger.js'
+import type { PluginLogger } from '../../../../src/utils/PluginLogger.js'
 
 function createMockLogger(): PluginLogger {
   return {

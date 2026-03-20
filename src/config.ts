@@ -27,7 +27,7 @@
  * @see PluginDiscovery - Plugin discovery service
  */
 import type { Plugin } from '@opencode-ai/plugin'
-import { createPluginLogger } from './utils/logger.js'
+import { createPluginLogger } from './utils/PluginLogger.js'
 import { ConfigLoader } from './services/ConfigLoader.js'
 import { ConfigMerger } from './services/ConfigMerger.js'
 import { PluginDiscovery } from './utils/PluginDiscovery.js'

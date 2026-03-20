@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { ConfigLoader } from '../../../src/services/ConfigLoader.js'
 import type { ConfigMergerInterface } from '../../../src/interfaces/ConfigMergerInterface.js'
-import type { PluginLogger } from '../../../src/utils/logger.js'
+import type { PluginLogger } from '../../../src/utils/PluginLogger.js'
 
 // Mock fs module
 vi.mock('node:fs')
