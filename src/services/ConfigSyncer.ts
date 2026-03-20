@@ -27,6 +27,8 @@
  * @see SyncPayload - The webhook request payload (US-CFG-011)
  * @see SyncResponse - The webhook response (US-CFG-011)
  */
+import { gt } from 'semver'
+
 import type { ConfigSyncerInterface } from '../interfaces/ConfigSyncerInterface.js'
 import type { SyncPayload } from '../types/SyncPayload.js'
 import type { SyncResponse } from '../types/SyncResponse.js'
@@ -184,6 +186,34 @@ export class ConfigSyncer implements ConfigSyncerInterface {
     } finally {
       clearTimeout(timeout)
     }
+  }
+
+  /**
+   * Check if the webhook response version is compatible with the current plugin version.
+   *
+   * @remarks
+   * Uses the `semver` npm package for correct semantic version comparison.
+   * A response is compatible when `response.version <= pluginVersion`.
+   * If the response was generated for a newer plugin version, the config
+   * might contain settings that the current plugin cannot handle.
+   *
+   * Logs a warning (not an error) when the version is incompatible,
+   * because this is a recoverable situation (Graceful Degradation).
+   *
+   * @param response - The webhook response containing the version field
+   * @param pluginVersion - The current plugin version from PluginDescriptor
+   * @returns `true` if the response is compatible, `false` if it should be rejected
+   *
+   * @see SyncResponse - The response type containing the version field
+   */
+  private checkVersionCompatibility(response: SyncResponse, pluginVersion: string): boolean {
+    if (gt(response.version, pluginVersion)) {
+      this.logger?.warn(
+        `Config für neuere Plugin-Version ${response.version} generiert (aktuell: ${pluginVersion}). Bitte Plugin updaten.`,
+      )
+      return false
+    }
+    return true
   }
 
   /**

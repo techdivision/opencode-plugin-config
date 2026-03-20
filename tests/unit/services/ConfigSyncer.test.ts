@@ -8,8 +8,10 @@
  * 3. null when neither source provides a value
  *
  * Also tests buildPayload() (US-CFG-011) which assembles the SyncPayload
- * from the provided parameters, and postToWebhook() (US-CFG-012) which
- * sends the HTTP POST request to the webhook endpoint.
+ * from the provided parameters, postToWebhook() (US-CFG-012) which
+ * sends the HTTP POST request to the webhook endpoint, and
+ * checkVersionCompatibility() (US-CFG-013) which validates semver
+ * compatibility between response version and plugin version.
  *
  * Note: resolveSyncUrl(), resolveSyncToken(), buildPayload() and postToWebhook()
  * are private methods (internal to syncConfig). Since syncConfig() is still a stub
@@ -50,6 +52,10 @@ type ConfigSyncerTestAccess = {
     payload: SyncPayload,
     syncToken: string | null,
   ): Promise<SyncResponse>
+  checkVersionCompatibility(
+    response: SyncResponse,
+    pluginVersion: string,
+  ): boolean
 }
 
 describe('ConfigSyncer', () => {
@@ -479,6 +485,95 @@ describe('ConfigSyncer', () => {
       await syncer.postToWebhook(testSyncUrl, testPayload, null)
 
       expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('checkVersionCompatibility [US-CFG-013]', () => {
+    it('should return true when response.version equals pluginVersion', () => {
+      const response: SyncResponse = { version: '0.2.0', config: {} }
+
+      const result = syncer.checkVersionCompatibility(response, '0.2.0')
+
+      expect(result).toBe(true)
+    })
+
+    it('should return true when response.version is lower than pluginVersion', () => {
+      const response: SyncResponse = { version: '0.1.0', config: {} }
+
+      const result = syncer.checkVersionCompatibility(response, '0.2.0')
+
+      expect(result).toBe(true)
+    })
+
+    it('should return false when response.version is higher than pluginVersion', () => {
+      const response: SyncResponse = { version: '0.3.0', config: {} }
+
+      const result = syncer.checkVersionCompatibility(response, '0.2.0')
+
+      expect(result).toBe(false)
+    })
+
+    it('should log a warning when response.version is higher than pluginVersion', () => {
+      const response: SyncResponse = { version: '0.3.0', config: {} }
+
+      syncer.checkVersionCompatibility(response, '0.2.0')
+
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1)
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('0.3.0'),
+      )
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('0.2.0'),
+      )
+    })
+
+    it('should not log a warning when versions are compatible', () => {
+      const response: SyncResponse = { version: '0.2.0', config: {} }
+
+      syncer.checkVersionCompatibility(response, '0.2.0')
+
+      expect(mockLogger.warn).not.toHaveBeenCalled()
+    })
+
+    it('should handle pre-release versions correctly via semver', () => {
+      const response: SyncResponse = { version: '1.0.1-beta.1', config: {} }
+
+      const result = syncer.checkVersionCompatibility(response, '1.0.0')
+
+      expect(result).toBe(false)
+    })
+
+    it('should return true when response.version is a lower major version', () => {
+      const response: SyncResponse = { version: '0.9.9', config: {} }
+
+      const result = syncer.checkVersionCompatibility(response, '1.0.0')
+
+      expect(result).toBe(true)
+    })
+
+    it('should return false when response.version is a higher patch version', () => {
+      const response: SyncResponse = { version: '0.2.1', config: {} }
+
+      const result = syncer.checkVersionCompatibility(response, '0.2.0')
+
+      expect(result).toBe(false)
+    })
+
+    it('should return false when response.version is a higher minor version', () => {
+      const response: SyncResponse = { version: '0.3.0', config: {} }
+
+      const result = syncer.checkVersionCompatibility(response, '0.2.0')
+
+      expect(result).toBe(false)
+    })
+
+    it('should work without logger (no crash on warn)', () => {
+      const syncerNoLogger = new ConfigSyncer() as unknown as ConfigSyncerTestAccess
+      const response: SyncResponse = { version: '0.3.0', config: {} }
+
+      const result = syncerNoLogger.checkVersionCompatibility(response, '0.2.0')
+
+      expect(result).toBe(false)
     })
   })
 
