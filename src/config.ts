@@ -12,17 +12,25 @@
  * Architecture: Explicit Constructor Injection (ADR-013).
  * Services are instantiated here and wired together manually.
  *
- * Plugin Discovery (US-CFG-015):
- * `discoverPlugins()` is called HERE in the entry point, not in ConfigSyncer.
- * The discovery result is decomposed and passed to services:
- * - `pluginNames: string[]` → ConfigSyncer.syncConfig()
- * - `pluginVersion: string` → ConfigSyncer.syncConfig()
- * - `plugins: Map<string, PluginDescriptor>` → SchemaValidator (EPIC-CFG-03)
+ * Orchestration flow (8 steps from arc42 6.6):
+ * 1. Create logger via SDK client
+ * 2. Instantiate services (ConfigLoader, ConfigSyncer, SchemaValidator, ConfigMerger)
+ * 3. Discover installed plugins (discoverPlugins)
+ * 4. Load local config cascade (Global + Project, deep-merged, env-resolved)
+ * 5. Webhook call (ConfigSyncer) with pluginNames + pluginVersion
+ * 6. Schema validation (SchemaValidator) of webhook response sections
+ * 7. Deep-merge (ConfigMerger) remote as base, local as override
+ * 8. Write final config to process.env.OPENCODE_PROJECT_CONFIG
+ *
+ * Error tolerance: Webhook failures and validation errors never block plugin start.
+ * On any sync/validation failure, the local config is used as-is.
  *
  * @see ADR-013 - Architektur-Patterns fuer TypeScript-Plugins
  * @see ADR-014 - Standard-Verzeichnisstruktur
  * @see ADR-015 - Plugin Discovery (Phase 1: eigene Implementierung)
  * @see ConfigLoader - Local config cascade (Global + Project)
+ * @see ConfigSyncer - Webhook-based config synchronization
+ * @see SchemaValidator - Section-level schema validation
  * @see ConfigMerger - Central deep-merge service
  * @see PluginDiscovery - Plugin discovery service
  */
@@ -30,19 +38,25 @@ import type { Plugin } from '@opencode-ai/plugin'
 import { createPluginLogger } from './utils/PluginLogger.js'
 import { ConfigLoader } from './services/ConfigLoader.js'
 import { ConfigMerger } from './services/ConfigMerger.js'
+import { ConfigSyncer } from './services/ConfigSyncer.js'
+import { SchemaValidator } from './services/SchemaValidator.js'
 import { PluginDiscovery } from './utils/PluginDiscovery.js'
+import { PROTECTED_FIELDS } from './types/PluginConfig.js'
 
 /**
  * The Config Plugin function.
  *
  * @remarks
- * Orchestrates the config sync flow:
+ * Orchestrates the complete config sync flow in 8 steps:
+ *
  * 1. Create logger via SDK client
  * 2. Instantiate services (Explicit Constructor Injection)
- * 3. Discover installed plugins (discoverPlugins)
- * 4. Extract plugin names and own version from discovery result
- * 5. Load local config cascade (Global + Project, deep-merged, env-resolved)
- * 6. (Future: Webhook call with pluginNames + pluginVersion, schema validation, final merge, process.env)
+ * 3. Discover installed plugins and extract metadata
+ * 4. Load local config cascade (Global + Project, deep-merged, env-resolved)
+ * 5. Sync config via webhook (ConfigSyncer) — returns null on failure
+ * 6. Validate webhook response sections (SchemaValidator) — skipped if sync failed
+ * 7. Deep-merge remote + local configs (ConfigMerger) — skipped if no valid remote
+ * 8. Write final config to process.env.OPENCODE_PROJECT_CONFIG
  *
  * Returns `{}` — no runtime hooks. All work is done at init time.
  *
@@ -50,14 +64,17 @@ import { PluginDiscovery } from './utils/PluginDiscovery.js'
  * @returns Empty hooks object (no runtime hooks needed)
  */
 export const ConfigPlugin: Plugin = async (input) => {
+  // --- Step 1: Create logger ---
   const logger = createPluginLogger(input.client, 'config')
 
-  // --- Service instantiation (Explicit Constructor Injection) ---
+  // --- Step 2: Service instantiation (Explicit Constructor Injection) ---
   const merger = new ConfigMerger()
   const loader = new ConfigLoader(merger, logger)
+  const syncer = new ConfigSyncer(logger)
+  const validator = new SchemaValidator(logger)
   const discovery = new PluginDiscovery()
 
-  // --- Plugin Discovery (US-CFG-015) ---
+  // --- Step 3: Plugin Discovery ---
   const safeDiscoverPlugins = logger.withLogging(
     logger.withErrorHandling(
       discovery.discoverPlugins.bind(discovery),
@@ -77,7 +94,7 @@ export const ConfigPlugin: Plugin = async (input) => {
     pluginVersion,
   })
 
-  // --- Local Config Cascade ---
+  // --- Step 4: Local Config Cascade ---
   const safeLoadConfig = logger.withLogging(
     logger.withErrorHandling(
       loader.loadLocalConfig.bind(loader),
@@ -86,15 +103,62 @@ export const ConfigPlugin: Plugin = async (input) => {
     'loadLocalConfig'
   )
 
-  const _localConfig = safeLoadConfig(input.directory)
+  const localConfig = safeLoadConfig(input.directory)
 
-  // Future (US-CFG-011+): Pass pluginNames and pluginVersion to ConfigSyncer
-  // const syncResponse = await configSyncer.syncConfig(localConfig, pluginNames, pluginVersion)
+  // --- Step 5: Webhook Sync (Graceful Degradation) ---
+  const safeSyncConfig = logger.withLogging(
+    logger.withErrorHandling(
+      syncer.syncConfig.bind(syncer),
+      null
+    ),
+    'syncConfig'
+  )
 
-  // Future (EPIC-CFG-03): Pass plugins Map to SchemaValidator
-  // const validator = new SchemaValidator(plugins)
+  const syncResponse = await safeSyncConfig(localConfig, pluginNames, pluginVersion)
+
+  // --- Step 6: Schema Validation (only if sync succeeded) ---
+  let validatedRemoteConfig: Record<string, unknown> = {}
+
+  if (syncResponse !== null) {
+    const pluginDescriptors = Array.from(plugins.values())
+    validatedRemoteConfig = validator.validateResponse(syncResponse, pluginDescriptors)
+
+    logger.debug('Schema validation completed', {
+      validSections: Object.keys(validatedRemoteConfig),
+    })
+  }
+
+  // --- Step 7: Deep-Merge (remote as base, local as override) ---
+  let finalConfig: Record<string, unknown>
+
+  if (Object.keys(validatedRemoteConfig).length > 0) {
+    finalConfig = merger.mergeWithProtectedFields(
+      validatedRemoteConfig,
+      localConfig,
+      PROTECTED_FIELDS,
+    )
+
+    logger.info('Config merged (remote + local)', {
+      remoteSections: Object.keys(validatedRemoteConfig),
+      finalSections: Object.keys(finalConfig),
+    })
+  } else {
+    finalConfig = localConfig
+
+    logger.info('Using local config only (no remote config available)')
+  }
+
+  // --- Step 8: Write to process.env ---
+  process.env.OPENCODE_PROJECT_CONFIG = JSON.stringify(finalConfig)
+
+  logger.info('Config written to process.env.OPENCODE_PROJECT_CONFIG', {
+    sections: Object.keys(finalConfig),
+  })
 
   return {}
 }
+
+export { getProjectConfig } from './helpers/getProjectConfig.js'
+export { getPluginConfig } from './helpers/getPluginConfig.js'
 
 export default ConfigPlugin
