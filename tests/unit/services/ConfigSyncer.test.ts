@@ -1,5 +1,5 @@
 /**
- * Unit tests for ConfigSyncer — sync_url/sync_token resolution and payload assembly.
+ * Unit tests for ConfigSyncer — sync_url/sync_token resolution, payload assembly, and HTTP POST.
  *
  * @remarks
  * Tests the resolution cascade:
@@ -8,10 +8,11 @@
  * 3. null when neither source provides a value
  *
  * Also tests buildPayload() (US-CFG-011) which assembles the SyncPayload
- * from the provided parameters.
+ * from the provided parameters, and postToWebhook() (US-CFG-012) which
+ * sends the HTTP POST request to the webhook endpoint.
  *
- * Note: resolveSyncUrl(), resolveSyncToken() and buildPayload() are private
- * methods (internal to syncConfig). Since syncConfig() is still a stub
+ * Note: resolveSyncUrl(), resolveSyncToken(), buildPayload() and postToWebhook()
+ * are private methods (internal to syncConfig). Since syncConfig() is still a stub
  * (US-CFG-014), we test the private methods via type-casting as a temporary
  * measure. Once syncConfig() is implemented, these tests should be refactored
  * to test through the public API.
@@ -19,11 +20,13 @@
  * @see ConfigSyncer
  * @see us-cfg-016-sync-url-resolution.feature
  * @see us-cfg-011-payload-assembly.feature
+ * @see us-cfg-012-http-post-webhook.feature
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ConfigSyncer } from '../../../src/services/ConfigSyncer.js'
 import type { PluginLogger } from '../../../src/utils/logger.js'
 import type { SyncPayload } from '../../../src/types/SyncPayload.js'
+import type { SyncResponse } from '../../../src/types/SyncResponse.js'
 
 /**
  * Type alias for accessing private methods during testing.
@@ -42,6 +45,11 @@ type ConfigSyncerTestAccess = {
     pluginVersion: string,
     email: string,
   ): SyncPayload
+  postToWebhook(
+    syncUrl: string,
+    payload: SyncPayload,
+    syncToken: string | null,
+  ): Promise<SyncResponse>
 }
 
 describe('ConfigSyncer', () => {
@@ -286,6 +294,191 @@ describe('ConfigSyncer', () => {
       const payload = syncer.buildPayload(localConfig, [], '0.1.0', 'user@example.com')
 
       expect(payload.config.jira).toEqual({ project: 'COPSPA', board: { id: 42 } })
+    })
+  })
+
+  describe('postToWebhook [US-CFG-012]', () => {
+    const testSyncUrl = 'https://n8n.example.com/webhook/oc-config-sync'
+    const testPayload: SyncPayload = {
+      plugin_version: '0.1.0',
+      email: 'user@example.com',
+      plugins: ['config'],
+      config: { jira: { project: 'COPSPA' } },
+    }
+    const testSyncResponse: SyncResponse = {
+      version: '0.1.0',
+      config: { jira: { board_id: 42 } },
+    }
+
+    let fetchMock: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('should send a POST request to the given sync_url', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(testSyncResponse),
+      })
+
+      await syncer.postToWebhook(testSyncUrl, testPayload, null)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [url, options] = fetchMock.mock.calls[0]
+      expect(url).toBe(testSyncUrl)
+      expect(options.method).toBe('POST')
+    })
+
+    it('should set Content-Type header to application/json', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(testSyncResponse),
+      })
+
+      await syncer.postToWebhook(testSyncUrl, testPayload, null)
+
+      const [, options] = fetchMock.mock.calls[0]
+      expect(options.headers['Content-Type']).toBe('application/json')
+    })
+
+    it('should send the payload as JSON-serialized body', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(testSyncResponse),
+      })
+
+      await syncer.postToWebhook(testSyncUrl, testPayload, null)
+
+      const [, options] = fetchMock.mock.calls[0]
+      expect(JSON.parse(options.body)).toEqual(testPayload)
+    })
+
+    it('should include Authorization header with Bearer token when sync_token is provided', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(testSyncResponse),
+      })
+
+      await syncer.postToWebhook(testSyncUrl, testPayload, 'my-secret-token')
+
+      const [, options] = fetchMock.mock.calls[0]
+      expect(options.headers['Authorization']).toBe('Bearer my-secret-token')
+    })
+
+    it('should not include Authorization header when sync_token is null', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(testSyncResponse),
+      })
+
+      await syncer.postToWebhook(testSyncUrl, testPayload, null)
+
+      const [, options] = fetchMock.mock.calls[0]
+      expect(options.headers['Authorization']).toBeUndefined()
+    })
+
+    it('should parse and return the response as SyncResponse', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(testSyncResponse),
+      })
+
+      const result = await syncer.postToWebhook(testSyncUrl, testPayload, null)
+
+      expect(result).toEqual(testSyncResponse)
+    })
+
+    it('should throw an error when response is not ok (HTTP 500)', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      })
+
+      await expect(
+        syncer.postToWebhook(testSyncUrl, testPayload, null),
+      ).rejects.toThrow('HTTP 500: Internal Server Error')
+    })
+
+    it('should throw an error when response is not ok (HTTP 404)', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      })
+
+      await expect(
+        syncer.postToWebhook(testSyncUrl, testPayload, null),
+      ).rejects.toThrow('HTTP 404: Not Found')
+    })
+
+    it('should throw an error when response is not ok (HTTP 401)', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+      })
+
+      await expect(
+        syncer.postToWebhook(testSyncUrl, testPayload, null),
+      ).rejects.toThrow('HTTP 401: Unauthorized')
+    })
+
+    it('should pass an AbortSignal to fetch for timeout control', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(testSyncResponse),
+      })
+
+      await syncer.postToWebhook(testSyncUrl, testPayload, null)
+
+      const [, options] = fetchMock.mock.calls[0]
+      expect(options.signal).toBeInstanceOf(AbortSignal)
+    })
+
+    it('should abort the request after 5 seconds via AbortController', async () => {
+      vi.useFakeTimers()
+
+      fetchMock.mockImplementation((_url: string, options: { signal: AbortSignal }) => {
+        return new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted.', 'AbortError'))
+          })
+        })
+      })
+
+      const promise = syncer.postToWebhook(testSyncUrl, testPayload, null)
+
+      vi.advanceTimersByTime(5000)
+
+      await expect(promise).rejects.toThrow()
+
+      vi.useRealTimers()
+    })
+
+    it('should use native fetch() (no external HTTP library)', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(testSyncResponse),
+      })
+
+      await syncer.postToWebhook(testSyncUrl, testPayload, null)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
   })
 

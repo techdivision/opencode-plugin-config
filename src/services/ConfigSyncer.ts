@@ -133,6 +133,60 @@ export class ConfigSyncer implements ConfigSyncerInterface {
   }
 
   /**
+   * Send an HTTP POST request to the webhook endpoint.
+   *
+   * @remarks
+   * Uses native `fetch()` (Node.js 18+) with:
+   * - Content-Type: application/json
+   * - Optional Bearer token Authorization header
+   * - 5-second timeout via AbortController
+   *
+   * On HTTP error (non-2xx status), throws an Error with the status code
+   * and status text. The calling syncConfig() facade catches this error
+   * and returns null (Graceful Degradation).
+   *
+   * On timeout (AbortController fires after 5 seconds), the fetch promise
+   * rejects with an AbortError, which is also caught by the facade.
+   *
+   * @param syncUrl - The webhook URL to POST to
+   * @param payload - The assembled SyncPayload to send as JSON body
+   * @param syncToken - Optional Bearer token for Authorization header (null = no auth)
+   * @returns The parsed SyncResponse from the webhook
+   * @throws Error on HTTP error (non-2xx status) or timeout (AbortError)
+   *
+   * @see SyncPayload - The request body type
+   * @see SyncResponse - The response type
+   */
+  private async postToWebhook(
+    syncUrl: string,
+    payload: SyncPayload,
+    syncToken: string | null,
+  ): Promise<SyncResponse> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+
+    try {
+      const response = await fetch(syncUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(syncToken ? { 'Authorization': `Bearer ${syncToken}` } : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      return await response.json() as SyncResponse
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  /**
    * Synchronize local config with the remote webhook.
    *
    * @remarks
