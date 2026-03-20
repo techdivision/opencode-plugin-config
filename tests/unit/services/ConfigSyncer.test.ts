@@ -577,6 +577,284 @@ describe('ConfigSyncer', () => {
     })
   })
 
+  describe('syncConfig [US-CFG-014]', () => {
+    let fetchMock: ReturnType<typeof vi.fn>
+    const validSyncResponse: SyncResponse = {
+      version: '0.1.0',
+      config: { jira: { board_id: 42 } },
+    }
+
+    beforeEach(() => {
+      fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      process.env.OPENCODE_USER_EMAIL = 'test@example.com'
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      delete process.env.OPENCODE_USER_EMAIL
+    })
+
+    it('should orchestrate the full sync flow and return SyncResponse on success', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync', sync_token: 'my-token' },
+        jira: { project: 'COPSPA' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(validSyncResponse),
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config', 'time-tracking'], '0.1.0')
+
+      expect(result).toEqual(validSyncResponse)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('should return null when sync_url is not configured', async () => {
+      const localConfig = {}
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('should return null when OPENCODE_USER_EMAIL is not set', async () => {
+      delete process.env.OPENCODE_USER_EMAIL
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('OPENCODE_USER_EMAIL'),
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('should return null and log warning on HTTP 404', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+      expect(mockLogger.warn).toHaveBeenCalled()
+    })
+
+    it('should return null and log warning on HTTP 500', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+      expect(mockLogger.warn).toHaveBeenCalled()
+    })
+
+    it('should return null and log warning on network error', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockRejectedValue(new TypeError('fetch failed'))
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+      expect(mockLogger.warn).toHaveBeenCalled()
+    })
+
+    it('should return null and log warning on invalid JSON response', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.reject(new SyntaxError('Unexpected token')),
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+      expect(mockLogger.warn).toHaveBeenCalled()
+    })
+
+    it('should return null and log warning when response has no version field', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ config: {} }),
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('version'),
+      )
+    })
+
+    it('should return null when version is incompatible', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ version: '0.3.0', config: {} }),
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.2.0')
+
+      expect(result).toBeNull()
+      expect(mockLogger.warn).toHaveBeenCalled()
+    })
+
+    it('should never throw an exception', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockRejectedValue(new Error('catastrophic failure'))
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+    })
+
+    it('should use warning level for all error logs, not error level', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(mockLogger.warn).toHaveBeenCalled()
+      expect(mockLogger.error).not.toHaveBeenCalled()
+    })
+
+    it('should pass correct payload to webhook', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync', sync_token: 'tok' },
+        jira: { project: 'COPSPA' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(validSyncResponse),
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      await publicSyncer.syncConfig(localConfig, ['config', 'time-tracking'], '0.1.0')
+
+      const [, options] = fetchMock.mock.calls[0]
+      const body = JSON.parse(options.body)
+      expect(body.plugin_version).toBe('0.1.0')
+      expect(body.email).toBe('test@example.com')
+      expect(body.plugins).toEqual(['config', 'time-tracking'])
+      expect(body.config).toEqual(localConfig)
+    })
+
+    it('should include Authorization header when sync_token is available', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync', sync_token: 'my-secret' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(validSyncResponse),
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      const [, options] = fetchMock.mock.calls[0]
+      expect(options.headers['Authorization']).toBe('Bearer my-secret')
+    })
+
+    it('should work without logger (no crash)', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockRejectedValue(new Error('network error'))
+
+      const syncerNoLogger = new ConfigSyncer()
+      const result = await syncerNoLogger.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+    })
+
+    it('should return null when response version field is missing (no version property)', async () => {
+      const localConfig = {
+        config: { sync_url: 'https://n8n.example.com/webhook/sync' },
+      }
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ config: { jira: {} } }),
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toBeNull()
+    })
+
+    it('should use sync_url from env fallback when not in config', async () => {
+      process.env.OC_CONFIG_SYNC_URL = 'https://env-fallback.example.com/webhook'
+      const localConfig = { jira: { project: 'COPSPA' } }
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(validSyncResponse),
+      })
+
+      const publicSyncer = new ConfigSyncer(mockLogger)
+      const result = await publicSyncer.syncConfig(localConfig, ['config'], '0.1.0')
+
+      expect(result).toEqual(validSyncResponse)
+      const [url] = fetchMock.mock.calls[0]
+      expect(url).toBe('https://env-fallback.example.com/webhook')
+
+      delete process.env.OC_CONFIG_SYNC_URL
+    })
+  })
+
   describe('constructor', () => {
     it('should accept logger as constructor parameter', () => {
       const syncerWithLogger = new ConfigSyncer(mockLogger)

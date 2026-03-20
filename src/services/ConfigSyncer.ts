@@ -220,19 +220,68 @@ export class ConfigSyncer implements ConfigSyncerInterface {
    * Synchronize local config with the remote webhook.
    *
    * @remarks
-   * Stub implementation — full logic will be added in US-CFG-014.
+   * Public facade that orchestrates the complete sync flow:
+   * 1. Resolve sync_url from config/env cascade
+   * 2. Pre-flight check: OPENCODE_USER_EMAIL must be set
+   * 3. Build the SyncPayload
+   * 4. Resolve sync_token from config/env cascade
+   * 5. HTTP POST to webhook
+   * 6. Validate response structure (version field required)
+   * 7. Check version compatibility
    *
-   * @param _localConfig - The fully resolved local config
-   * @param _pluginNames - Names of all installed plugins
-   * @param _pluginVersion - Semantic version of this plugin
-   * @returns Always `null` (not yet implemented)
+   * Implements Graceful Degradation: returns `null` on ANY error,
+   * logs warnings (never errors), and never throws exceptions.
+   * This ensures the plugin system is never blocked by sync failures.
+   *
+   * @param localConfig - The fully resolved local config (Global + Project merged, env-resolved)
+   * @param pluginNames - Names of all installed plugins from `discoverPlugins()`
+   * @param pluginVersion - Semantic version of this plugin from PluginDescriptor
+   * @returns The remote SyncResponse, or `null` if sync fails (Graceful Degradation)
    */
   public async syncConfig(
-    _localConfig: Record<string, unknown>,
-    _pluginNames: string[],
-    _pluginVersion: string,
+    localConfig: Record<string, unknown>,
+    pluginNames: string[],
+    pluginVersion: string,
   ): Promise<SyncResponse | null> {
-    return null
+    try {
+      // 1. Resolve sync_url from config/env cascade
+      const syncUrl = this.resolveSyncUrl(localConfig)
+      if (!syncUrl) {
+        return null
+      }
+
+      // 2. Pre-flight: OPENCODE_USER_EMAIL must be set
+      const email = process.env.OPENCODE_USER_EMAIL
+      if (!email) {
+        this.logger?.warn('OPENCODE_USER_EMAIL not set, skipping config sync')
+        return null
+      }
+
+      // 3. Build the SyncPayload
+      const payload = this.buildPayload(localConfig, pluginNames, pluginVersion, email)
+
+      // 4. Resolve sync_token from config/env cascade
+      const syncToken = this.resolveSyncToken(localConfig)
+
+      // 5. HTTP POST to webhook
+      const response = await this.postToWebhook(syncUrl, payload, syncToken)
+
+      // 6. Validate response structure (version field required)
+      if (!response.version) {
+        this.logger?.warn('Config sync response missing version field, skipping')
+        return null
+      }
+
+      // 7. Check version compatibility
+      if (!this.checkVersionCompatibility(response, pluginVersion)) {
+        return null
+      }
+
+      return response
+    } catch (error) {
+      this.logger?.warn(`Config sync failed: ${error}`)
+      return null
+    }
   }
 
   /**
