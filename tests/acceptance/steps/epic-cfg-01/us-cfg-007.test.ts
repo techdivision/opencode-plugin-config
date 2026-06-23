@@ -48,16 +48,8 @@ describe('Feature: Repository Initialization and Project Scaffolding', () => {
       expect(json.dependencies).toHaveProperty('@opencode-ai/plugin')
     })
 
-    it('should have deepmerge dependency', () => {
-      expect(json.dependencies).toHaveProperty('deepmerge')
-    })
-
-    it('should have ajv dependency', () => {
-      expect(json.dependencies).toHaveProperty('ajv')
-    })
-
-    it('should have ajv-formats dependency', () => {
-      expect(json.dependencies).toHaveProperty('ajv-formats')
+    it('should depend on the shared config-sync library', () => {
+      expect(json.dependencies).toHaveProperty('@techdivision/lib-ts-config-sync')
     })
 
     it('should have @types/bun devDependency', () => {
@@ -221,17 +213,10 @@ describe('Feature: Repository Initialization and Project Scaffolding', () => {
 
   describe('Scenario: Directory structure is complete', () => {
     const dirs = [
-      'src/services',
-      'src/services/interfaces',
-      'src/types',
       'src/utils',
-      'tests/unit',
-      'tests/unit/services',
-      'tests/integration',
       'tests/acceptance',
       'tests/acceptance/gherkin',
-      'schemas',
-      'skills'
+      'schemas'
     ]
 
     for (const dir of dirs) {
