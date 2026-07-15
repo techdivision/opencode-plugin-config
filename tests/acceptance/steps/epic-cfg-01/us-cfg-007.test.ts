@@ -176,12 +176,16 @@ describe('Feature: Repository Initialization and Project Scaffolding', () => {
       expect(fs.existsSync(filePath)).toBe(true)
     })
 
-    it('should contain OC_CONFIG_SYNC_URL', () => {
-      expect(content).toContain('OC_CONFIG_SYNC_URL')
+    it('should contain CONFIG_SYNC_URL', () => {
+      expect(content).toContain('CONFIG_SYNC_URL')
     })
 
-    it('should contain OC_CONFIG_SYNC_TOKEN', () => {
-      expect(content).toContain('OC_CONFIG_SYNC_TOKEN')
+    it('should contain CONFIG_SYNC_BEARER_TOKEN', () => {
+      expect(content).toContain('CONFIG_SYNC_BEARER_TOKEN')
+    })
+
+    it('should contain CONFIG_SYNC_CONFIG_KEY', () => {
+      expect(content).toContain('CONFIG_SYNC_CONFIG_KEY')
     })
 
     it('should contain OPENCODE_USER_EMAIL', () => {
