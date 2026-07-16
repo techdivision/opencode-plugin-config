@@ -4,9 +4,10 @@
  * Thin wrapper around @techdivision/lib-ts-config-sync. The shared library
  * owns the entire sync pipeline (local cascade, env-var resolution, n8n
  * webhook, per-section schema validation, deep-merge). This wrapper only:
- *   - adapts the OpenCode SDK client to the library Logger
+ *   - runs the sync immediately at plugin load (every opencode startup)
+ *   - shows an info toast once the UI is ready (plugin.added primary,
+ *     session.created fallback — same pattern as opencode-cli)
  *   - reads the plugin version from plugin.json
- *   - triggers the OpenCodeAdapter on session start
  *
  * The merged config is exposed in-memory via
  * process.env.OPENCODE_PROJECT_CONFIG for downstream consumer plugins.
@@ -14,15 +15,12 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
-import type { Plugin } from '@opencode-ai/plugin'
-import { OpenCodeAdapter, type Logger } from '@techdivision/lib-ts-config-sync'
+import type { Plugin, PluginInput } from '@opencode-ai/plugin'
+import { OpenCodeAdapter, type Logger, type SyncResult } from '@techdivision/lib-ts-config-sync'
 import { createPluginLogger } from './utils/logger.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-/**
- * Read this plugin's version from plugin.json. Falls back to '0.0.0'.
- */
 function readPluginVersion(): string {
   try {
     const pluginJsonPath = resolve(__dirname, '..', 'plugin.json')
@@ -33,10 +31,22 @@ function readPluginVersion(): string {
   }
 }
 
-export const ConfigPlugin: Plugin = async (input) => {
-  const pluginLogger = createPluginLogger(input.client, 'config')
+async function showSyncToast(client: PluginInput['client'], result: SyncResult): Promise<void> {
+  const message = result.remoteApplied
+    ? `Config synced (${result.message.replace('Config synced (', '').replace(')', '')})`
+    : 'Config: using local settings'
+  try {
+    await client.tui.showToast({
+      body: { message, variant: 'info', duration: 8000 },
+    })
+  } catch {
+    // Toast API unavailable — not critical.
+  }
+}
 
-  // Adapt the OpenCode SDK logger to the library's Logger interface.
+export const plugin: Plugin = async ({ client }: PluginInput) => {
+  const pluginLogger = createPluginLogger()
+
   const logger: Logger = {
     debug: (message, context) => pluginLogger.debug(message, context),
     info: (message, context) => pluginLogger.info(message, context),
@@ -49,13 +59,23 @@ export const ConfigPlugin: Plugin = async (input) => {
     logger,
   })
 
-  return {
-    event: async ({ event }) => {
-      if (event.type === 'session.created') {
-        await adapter.run()
+  // Run immediately at plugin load — before any session event.
+  let syncResult: SyncResult | null = null
+  let toastShown = false
+
+  adapter.run().then((result) => {
+    syncResult = result
+    setTimeout(() => {
+      if (!toastShown) {
+        toastShown = true
+        showSyncToast(client, result)
       }
-    },
-  }
+    }, 3000)
+  }).catch((err) => {
+    pluginLogger.error('Config sync failed during init', { error: String(err) })
+  })
+
+  return {}
 }
 
-export default ConfigPlugin
+export default plugin
