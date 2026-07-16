@@ -3,11 +3,10 @@
   "version": "0.1.0",
   "description": "OpenCode Plugin - Configuration cascade with deep-merge, env-var resolution and schema validation",
   "type": "module",
-  "main": "src/config.ts",
-  "types": "src/config.ts",
+  "main": "src/Plugin.ts",
+  "types": "src/Plugin.ts",
   "files": [
     "src/",
-    "skills/",
     "schemas/",
     "plugin.json"
   ],
@@ -24,12 +23,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "1.2.5",
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1",
-    "deepmerge": "^4.3.1"
+    "@techdivision/lib-ts-config-sync": "file:../lib-ts-config-sync"
   },
   "devDependencies": {
+    "@opencode-ai/plugin": "^1.17.0",
     "@types/bun": "latest",
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3",
@@ -37,7 +34,7 @@
     "@amiceli/vitest-cucumber": "^6.0.0"
   },
   "peerDependencies": {
-    "bun": ">=1.0.0"
+    "@opencode-ai/plugin": ">=1.0.0"
   },
   "opencode": {
     "plugin": true,

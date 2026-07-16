@@ -1,62 +1,52 @@
 /**
  * Plugin Logger Factory
  *
- * Creates a logger that uses the OpenCode SDK client for logging.
- * NEVER use console.log/console.error - they interfere with the OpenCode TUI.
+ * Creates a logger that writes through the OpenCode SDK client
+ * (client.app.log) AND to a dedicated file log at
+ * ~/.local/share/opencode/log/config.log — same directory and format as
+ * opencode.log, auto-linker.log, and safety-net.log.
+ *
+ * NEVER use console.log/console.error — they interfere with the OpenCode TUI.
  */
+
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+const LOG_DIR = path.join(os.homedir(), '.local', 'share', 'opencode', 'log')
+const LOG_FILE = path.join(LOG_DIR, 'config.log')
+
+function writeToFile(
+  level: string,
+  message: string,
+  extra?: Record<string, unknown>
+): void {
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true })
+    const fields = extra
+      ? Object.entries(extra)
+          .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+          .join(' ')
+      : ''
+    const line = `timestamp=${new Date().toISOString()} level=${level} service=opencode-plugin/config message=${JSON.stringify(message)}${fields ? ' ' + fields : ''}\n`
+    fs.appendFileSync(LOG_FILE, line)
+  } catch {
+    // Logging must never crash the plugin.
+  }
+}
 
 export interface PluginLogger {
   debug(msg: string, extra?: Record<string, unknown>): void
   info(msg: string, extra?: Record<string, unknown>): void
   warn(msg: string, extra?: Record<string, unknown>): void
   error(msg: string, extra?: Record<string, unknown>): void
-  withLogging<T extends (...args: any[]) => any>(fn: T, name: string): T
-  withErrorHandling<T extends (...args: any[]) => any>(fn: T, fallback: any): T
 }
 
-interface LogClient {
-  log(params: { body: Record<string, unknown> }): void
-}
-
-export function createPluginLogger(client: LogClient, service: string): PluginLogger {
-  function log(level: 'debug' | 'info' | 'warn' | 'error', message: string, extra?: Record<string, unknown>): void {
-    client.log({ body: { service, level, message, extra } })
-  }
-
+export function createPluginLogger(): PluginLogger {
   return {
-    debug: (msg: string, extra?: Record<string, unknown>) => log('debug', msg, extra),
-    info: (msg: string, extra?: Record<string, unknown>) => log('info', msg, extra),
-    warn: (msg: string, extra?: Record<string, unknown>) => log('warn', msg, extra),
-    error: (msg: string, extra?: Record<string, unknown>) => log('error', msg, extra),
-
-    withLogging<T extends (...args: any[]) => any>(fn: T, name: string): T {
-      return ((...args: any[]) => {
-        log('debug', `${name} started`)
-        const start = Date.now()
-        const result = fn(...args)
-        if (result instanceof Promise) {
-          return result
-            .then((r: any) => { log('info', `${name} completed`, { duration: Date.now() - start }); return r })
-            .catch((e: any) => { log('error', `${name} failed`, { error: String(e), duration: Date.now() - start }); throw e })
-        }
-        log('info', `${name} completed`, { duration: Date.now() - start })
-        return result
-      }) as T
-    },
-
-    withErrorHandling<T extends (...args: any[]) => any>(fn: T, fallback: any): T {
-      return ((...args: any[]) => {
-        try {
-          const result = fn(...args)
-          if (result instanceof Promise) {
-            return result.catch((e: any) => { log('warn', 'Graceful degradation', { error: String(e) }); return fallback })
-          }
-          return result
-        } catch (e) {
-          log('warn', 'Graceful degradation', { error: String(e) })
-          return fallback
-        }
-      }) as T
-    }
+    debug: (msg, extra) => writeToFile('DEBUG', msg, extra),
+    info: (msg, extra) => writeToFile('INFO', msg, extra),
+    warn: (msg, extra) => writeToFile('WARN', msg, extra),
+    error: (msg, extra) => writeToFile('ERROR', msg, extra),
   }
 }
